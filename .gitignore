@@ -1,0 +1,41 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Linux
+*~
+.directory
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+
+# Talos/kubectl configs (these are auto-generated)
+*.kubeconfig
+talosconfig
+
+# Secrets and sensitive data
+*.pem
+*.key
+*.crt
+secrets/
+*.env
+.env
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Logs
+*.log
+
+# Backup files
+*.bak
+*.backup
