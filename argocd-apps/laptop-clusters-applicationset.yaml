@@ -1,0 +1,262 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: laptop-clusters-core-apps
+  namespace: argocd
+spec:
+  # Generate applications for all clusters with the 'laptop' label
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            environment: laptop
+  template:
+    metadata:
+      name: '{{name}}-{{path.basename}}'
+      labels:
+        cluster: '{{name}}'
+        environment: laptop
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/YOUR-USERNAME/local-cluster-standard.git
+        targetRevision: HEAD
+        path: 'argocd-apps/core-apps/{{path.basename}}'
+      destination:
+        server: '{{server}}'
+        namespace: '{{path.basename}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      # Sync waves to ensure proper ordering
+      syncOptions:
+        - RespectIgnoreDifferences=true
+---
+# ApplicationSet specifically for Cilium (needs kube-system namespace)
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: laptop-clusters-cilium
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            environment: laptop
+  template:
+    metadata:
+      name: '{{name}}-cilium'
+      labels:
+        cluster: '{{name}}'
+        environment: laptop
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"  # Deploy first
+    spec:
+      project: default
+      source:
+        repoURL: https://helm.cilium.io/
+        chart: cilium
+        targetRevision: 1.18.0
+        helm:
+          releaseName: cilium
+          values: |
+            ipam:
+              mode: kubernetes
+            kubeProxyReplacement: true
+            forwardKubeDNSToHost: false
+            hubble:
+              enabled: true
+              relay:
+                enabled: true
+              ui:
+                enabled: true
+      destination:
+        server: '{{server}}'
+        namespace: kube-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=false
+          - ServerSideApply=true
+---
+# ApplicationSet for monitoring stack
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: laptop-clusters-monitoring
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            environment: laptop
+  template:
+    metadata:
+      name: '{{name}}-monitoring'
+      labels:
+        cluster: '{{name}}'
+        environment: laptop
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+    spec:
+      project: default
+      source:
+        repoURL: https://prometheus-community.github.io/helm-charts
+        chart: kube-prometheus-stack
+        targetRevision: 65.0.0
+        helm:
+          releaseName: kube-prometheus-stack
+          values: |
+            prometheus:
+              prometheusSpec:
+                retention: 7d
+                resources:
+                  requests:
+                    cpu: 200m
+                    memory: 512Mi
+                  limits:
+                    cpu: 500m
+                    memory: 1Gi
+                storageSpec:
+                  volumeClaimTemplate:
+                    spec:
+                      accessModes: ["ReadWriteOnce"]
+                      resources:
+                        requests:
+                          storage: 10Gi
+            grafana:
+              enabled: true
+              adminPassword: admin
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+            alertmanager:
+              enabled: true
+              alertmanagerSpec:
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+                  limits:
+                    cpu: 100m
+                    memory: 128Mi
+            kubeEtcd:
+              enabled: false
+            kubeControllerManager:
+              enabled: false
+            kubeScheduler:
+              enabled: false
+      destination:
+        server: '{{server}}'
+        namespace: monitoring
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+---
+# ApplicationSet for ingress-nginx
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: laptop-clusters-ingress-nginx
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            environment: laptop
+  template:
+    metadata:
+      name: '{{name}}-ingress-nginx'
+      labels:
+        cluster: '{{name}}'
+        environment: laptop
+      annotations:
+        argocd.argoproj.io/sync-wave: "0"
+    spec:
+      project: default
+      source:
+        repoURL: https://kubernetes.github.io/ingress-nginx
+        chart: ingress-nginx
+        targetRevision: 4.11.0
+        helm:
+          releaseName: ingress-nginx
+          values: |
+            controller:
+              service:
+                type: NodePort
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 90Mi
+                limits:
+                  cpu: 200m
+                  memory: 180Mi
+              admissionWebhooks:
+                enabled: false
+      destination:
+        server: '{{server}}'
+        namespace: ingress-nginx
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+---
+# ApplicationSet for cert-manager
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: laptop-clusters-cert-manager
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            environment: laptop
+  template:
+    metadata:
+      name: '{{name}}-cert-manager'
+      labels:
+        cluster: '{{name}}'
+        environment: laptop
+      annotations:
+        argocd.argoproj.io/sync-wave: "0"
+    spec:
+      project: default
+      source:
+        repoURL: https://charts.jetstack.io
+        chart: cert-manager
+        targetRevision: v1.16.1
+        helm:
+          releaseName: cert-manager
+          parameters:
+            - name: crds.enabled
+              value: "true"
+      destination:
+        server: '{{server}}'
+        namespace: cert-manager
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

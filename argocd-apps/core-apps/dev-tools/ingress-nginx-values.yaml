@@ -1,0 +1,19 @@
+# Ingress-nginx Helm values for local clusters
+# Managed by ArgoCD from homelab cluster
+
+controller:
+  # Use NodePort for local Docker-based clusters
+  service:
+    type: NodePort
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 90Mi
+    limits:
+      cpu: 200m
+      memory: 180Mi
+
+  # Disable admission webhooks to simplify local setup
+  admissionWebhooks:
+    enabled: false

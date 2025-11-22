@@ -36,6 +36,47 @@ chmod +x *.sh
 
 That's it! You now have a fully functional Kubernetes cluster with Cilium and ArgoCD.
 
+## Two Modes of Operation
+
+This repository supports two deployment models:
+
+### 1. Standalone Mode (Default)
+Perfect for individual testing and development on a single laptop.
+- Cilium and ArgoCD installed locally on the cluster
+- Full autonomy per cluster
+- Quick setup with `./create-cluster.sh`
+
+### 2. Multi-Cluster GitOps Mode
+Ideal when you have multiple laptops and want consistent core applications managed centrally.
+- **Homelab ArgoCD** manages core apps (Cilium, monitoring, ingress, cert-manager) on ALL laptop clusters
+- **Laptop clusters** can still deploy testing apps manually (kubectl/helm)
+- Core apps always in sync, testing apps are independent
+
+**Use Multi-Cluster GitOps when:**
+- You work across multiple laptops (MacBook + Linux)
+- You want core infrastructure consistent everywhere
+- You have a homelab cluster with ArgoCD
+- Laptops connect to homelab via VPN/Tailscale
+
+**See [MULTI_CLUSTER_SETUP.md](MULTI_CLUSTER_SETUP.md) for complete multi-cluster setup guide.**
+
+### Quick Multi-Cluster Start
+
+```bash
+# On your laptop (after homelab ArgoCD is set up)
+./create-cluster.sh --skip-cilium --register-with-homelab homelab my-laptop
+
+# ArgoCD will automatically deploy:
+# - Cilium CNI
+# - Prometheus/Grafana monitoring
+# - Ingress-nginx
+# - Cert-manager
+# - Any other core apps defined in the ApplicationSet
+
+# Deploy testing apps manually:
+kubectl apply -f test-apps/hello-world/deployment.yaml
+```
+
 ## Common Commands
 
 ### Create Cluster Variants
@@ -97,14 +138,22 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.pas
 
 ```
 local-cluster-standard/
-├── README.md                    # This file
-├── CLUSTER_PLAN.md              # Detailed plan and rationale
-├── create-cluster.sh            # Cluster creation script
-├── install-argocd.sh            # ArgoCD installation script
-├── cilium-patch.yaml            # Talos config for Cilium CNI
-├── test-apps/                   # Sample applications
+├── README.md                         # This file
+├── CLUSTER_PLAN.md                   # Detailed plan and rationale
+├── MULTI_CLUSTER_SETUP.md            # Multi-cluster GitOps guide
+├── create-cluster.sh                 # Cluster creation script
+├── install-argocd.sh                 # ArgoCD installation script (standalone)
+├── cilium-patch.yaml                 # Talos config for Cilium CNI
+├── scripts/
+│   └── register-cluster.sh           # Register laptop with homelab ArgoCD
+├── test-apps/                        # Sample testing applications
 │   └── hello-world/
-└── argocd-apps/                 # ArgoCD application manifests
+└── argocd-apps/                      # ArgoCD application manifests
+    ├── laptop-clusters-applicationset.yaml  # Multi-cluster deployment
+    └── core-apps/                    # Core apps (Cilium, monitoring, etc.)
+        ├── cilium/
+        ├── monitoring/
+        └── dev-tools/
 ```
 
 ## Multiple Clusters
@@ -153,10 +202,22 @@ See [CLUSTER_PLAN.md](CLUSTER_PLAN.md) for comprehensive documentation, known is
 
 ## Next Steps
 
+### Standalone Mode
 1. Deploy a test application to verify everything works
 2. Set up an ArgoCD application to deploy from Git
 3. Experiment with Cilium features (network policies, hubble, etc.)
-4. Read [CLUSTER_PLAN.md](CLUSTER_PLAN.md) for advanced configurations
+
+### Multi-Cluster GitOps Mode
+1. Read [MULTI_CLUSTER_SETUP.md](MULTI_CLUSTER_SETUP.md) for complete setup
+2. Push this repo to GitHub/GitLab
+3. Deploy ApplicationSet to homelab ArgoCD
+4. Create and register laptop clusters
+5. Deploy testing apps manually while core apps auto-sync
+
+### Advanced
+- Read [CLUSTER_PLAN.md](CLUSTER_PLAN.md) for detailed architecture and rationale
+- Customize core app configurations in `argocd-apps/core-apps/`
+- Add your own core applications to the ApplicationSet
 
 ## Resources
 

@@ -1,0 +1,20 @@
+# Cilium Helm values for Talos Linux local clusters
+# Managed by ArgoCD from homelab cluster
+
+ipam:
+  mode: kubernetes
+
+kubeProxyReplacement: true
+
+# Disable host DNS forwarding (required for Talos)
+forwardKubeDNSToHost: false
+
+# Enable Hubble for observability
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+
+# Cluster-specific overrides can be added via ApplicationSet
