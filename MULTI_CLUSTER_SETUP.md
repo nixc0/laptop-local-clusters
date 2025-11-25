@@ -5,35 +5,57 @@ This guide explains how to use your homelab ArgoCD to manage core applications a
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────┐
-│          Homelab Cluster                        │
-│  ┌──────────────────────────────────────────┐   │
-│  │         ArgoCD                           │   │
-│  │  - Manages core apps on all clusters    │   │
-│  │  - Syncs from Git repository             │   │
-│  │  - Targets clusters with label:         │   │
-│  │    environment=laptop                    │   │
-│  └────────────┬────────────────┬────────────┘   │
-└───────────────┼────────────────┼────────────────┘
-                │                │
-    ┌───────────▼──────┐    ┌────▼──────────────┐
-    │  MacBook Cluster │    │  Linux Laptop     │
-    │                  │    │  Cluster          │
-    │  Core Apps:      │    │                   │
-    │  ✓ Cilium        │    │  Core Apps:       │
-    │  ✓ Monitoring    │    │  ✓ Cilium         │
-    │  ✓ Ingress       │    │  ✓ Monitoring     │
-    │  ✓ Cert-Manager  │    │  ✓ Ingress        │
-    │  ✓ Backstage     │    │  ✓ Cert-Manager   │
-    │                  │    │  ✓ Backstage      │
-    │  Testing Apps:   │    │                   │
-    │  • App A (local) │    │  Testing Apps:    │
-    │  • App B (local) │    │  • App C (local)  │
-    └──────────────────┘    └───────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│          Homelab Cluster                                │
+│                                                          │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │              ArgoCD                                │  │
+│  │                                                    │  │
+│  │  1. Bootstrap App (you apply once)                │  │
+│  │     ↓                                              │  │
+│  │  2. ApplicationSets (auto-synced from Git)        │  │
+│  │     - laptop-clusters-cilium                      │  │
+│  │     - laptop-clusters-monitoring                  │  │
+│  │     - laptop-clusters-ingress-nginx               │  │
+│  │     - laptop-clusters-cert-manager                │  │
+│  │     ↓                                              │  │
+│  │  3. Applications (auto-created per cluster)       │  │
+│  │     When cluster labeled environment=laptop       │  │
+│  └─────┬──────────────────────────┬──────────────────┘  │
+└────────┼──────────────────────────┼─────────────────────┘
+         │                          │
+         │ (via VPN/Tailscale)      │
+         │                          │
+    ┌────▼──────────────┐    ┌──────▼────────────────┐
+    │  MacBook Cluster  │    │  Linux Laptop Cluster │
+    │                   │    │                       │
+    │  Core Apps:       │    │  Core Apps:           │
+    │  ✓ Cilium         │    │  ✓ Cilium             │
+    │  ✓ Monitoring     │    │  ✓ Monitoring         │
+    │  ✓ Ingress        │    │  ✓ Ingress            │
+    │  ✓ Cert-Manager   │    │  ✓ Cert-Manager       │
+    │                   │    │                       │
+    │  Testing Apps:    │    │  Testing Apps:        │
+    │  • App A (local)  │    │  • App C (local)      │
+    │  • App B (local)  │    │                       │
+    └───────────────────┘    └───────────────────────┘
          ▲                         ▲
          │                         │
-    kubectl apply            kubectl apply
-    (not in Git)            (not in Git)
+    kubectl apply           kubectl apply
+    (not in Git)           (not in Git)
+```
+
+**GitOps Flow:**
+```
+GitHub Repo
+    ↓
+1. Bootstrap App (applied once to homelab)
+    ↓ (watches argocd-apps/laptop-clusters-applicationset.yaml)
+2. ApplicationSets (auto-synced)
+    ↓ (watches for clusters with environment=laptop label)
+3. Applications (auto-created when cluster registered)
+    ↓ (deploys to laptop clusters)
+4. Core Infrastructure (Cilium, Monitoring, etc.)
 ```
 
 ## Prerequisites
@@ -85,9 +107,9 @@ git commit -m "Update ApplicationSet repository URL"
 git push
 ```
 
-### Step 3: Deploy ApplicationSet on Homelab
+### Step 3: Deploy Bootstrap Application on Homelab
 
-On your homelab cluster, deploy the ApplicationSet:
+On your homelab cluster, deploy the bootstrap Application that manages the ApplicationSets:
 
 ```bash
 # Switch to homelab context
@@ -96,12 +118,28 @@ kubectl config use-context homelab
 # Verify ArgoCD is running
 kubectl get pods -n argocd
 
-# Apply the ApplicationSet
-kubectl apply -f argocd-apps/laptop-clusters-applicationset.yaml
+# Apply the bootstrap Application (only needed once!)
+kubectl apply -f argocd-apps/bootstrap-laptop-management.yaml
 
-# Verify it was created
+# Verify the bootstrap app was created
+kubectl get app laptop-management-bootstrap -n argocd
+
+# Wait for it to sync (creates the ApplicationSets)
+argocd app sync laptop-management-bootstrap
+
+# Verify ApplicationSets were created
 kubectl get applicationset -n argocd
+# You should see:
+# - laptop-clusters-cilium
+# - laptop-clusters-monitoring
+# - laptop-clusters-ingress-nginx
+# - laptop-clusters-cert-manager
 ```
+
+**What just happened?**
+- The bootstrap Application now manages the ApplicationSets
+- Any changes you make to `laptop-clusters-applicationset.yaml` in Git will auto-sync
+- This is fully GitOps - everything is managed through Git!
 
 ### Step 4: Create and Register Laptop Cluster
 

@@ -47,7 +47,7 @@ Laptop Clusters (labeled: environment=laptop)
 ├── README.md                         # Quick start guide
 ├── CLUSTER_PLAN.md                   # Detailed feasibility analysis
 ├── MULTI_CLUSTER_SETUP.md            # Multi-cluster setup guide
-├── claude.md                         # This file
+├── CLAUDE.md                         # This file
 ├── cilium-patch.yaml                 # Talos config to disable default CNI
 ├── create-cluster.sh                 # Cluster creation (standalone or ArgoCD-managed)
 ├── install-argocd.sh                 # Install ArgoCD locally (standalone mode)
@@ -56,8 +56,9 @@ Laptop Clusters (labeled: environment=laptop)
 │   └── register-cluster.sh           # Register laptop with homelab ArgoCD
 ├── argocd-apps/
 │   ├── README.md                     # ArgoCD apps documentation
+│   ├── bootstrap-laptop-management.yaml      # Bootstrap app (apply once to homelab)
+│   ├── laptop-clusters-applicationset.yaml   # ApplicationSets (managed by bootstrap)
 │   ├── hello-world-app.yaml          # Example ArgoCD app
-│   ├── laptop-clusters-applicationset.yaml  # Multi-cluster deployment
 │   └── core-apps/                    # Core infrastructure apps
 │       ├── README.md                 # Core apps documentation
 │       ├── cilium/                   # Cilium CNI
@@ -102,8 +103,12 @@ Laptop Clusters (labeled: environment=laptop)
 
 ### Create ArgoCD-Managed Cluster
 ```bash
+# ONE-TIME: Apply bootstrap app to homelab (if not already done)
+kubectl apply -f argocd-apps/bootstrap-laptop-management.yaml --context homelab
+
+# Create laptop cluster and register with homelab
 ./create-cluster.sh --skip-cilium --register-with-homelab homelab my-laptop
-# ArgoCD automatically deploys core apps
+# ArgoCD automatically deploys core apps via ApplicationSets
 ```
 
 ### Deploy Testing Application
@@ -125,6 +130,20 @@ talosctl cluster destroy --name my-cluster
 
 ## Important Files
 
+### bootstrap-laptop-management.yaml
+Bootstrap Application deployed to homelab ArgoCD (App-of-Apps pattern):
+- Manages the ApplicationSets in Git
+- Auto-syncs changes to ApplicationSets
+- Applied ONCE to homelab, then everything is GitOps
+- Enables fully declarative multi-cluster management
+
+### laptop-clusters-applicationset.yaml
+Defines ALL core applications deployed to laptop clusters:
+- Managed by the bootstrap Application
+- Contains ApplicationSets for Cilium, monitoring, ingress, cert-manager
+- Uses cluster selector `environment=laptop` for targeting
+- Single source of truth for multi-cluster infrastructure
+
 ### cilium-patch.yaml
 Talos machine config patch that disables default CNI, allowing Cilium to be installed instead.
 
@@ -134,15 +153,12 @@ Main cluster creation script with two modes:
 - `--skip-cilium`: Skips Cilium for ArgoCD management
 - `--register-with-homelab`: Auto-registers with homelab ArgoCD
 
-### laptop-clusters-applicationset.yaml
-Defines ALL core applications deployed to laptop clusters. This is the single source of truth for multi-cluster infrastructure.
-
 ### register-cluster.sh
 Registers laptop cluster with homelab ArgoCD:
 1. Creates service account in laptop cluster
 2. Grants cluster-admin to ArgoCD
 3. Adds cluster to ArgoCD with `environment=laptop` label
-4. Triggers automatic core app deployment
+4. ApplicationSets detect new cluster and deploy core apps
 
 ## Configuration
 
@@ -242,10 +258,15 @@ Normal behavior - nodes stay NotReady until CNI (Cilium) is installed. Wait for 
 ## Next Steps for User
 
 1. Push repository to GitHub/GitLab
-2. Update ApplicationSet repository URL (replace YOUR-USERNAME)
-3. Deploy ApplicationSet to homelab ArgoCD
+2. Update repository URLs in both files (replace YOUR-USERNAME):
+   - `argocd-apps/bootstrap-laptop-management.yaml`
+   - `argocd-apps/laptop-clusters-applicationset.yaml`
+3. Apply bootstrap Application to homelab ArgoCD (ONE-TIME):
+   ```bash
+   kubectl apply -f argocd-apps/bootstrap-laptop-management.yaml --context homelab
+   ```
 4. Create first laptop cluster and register
-5. Verify core apps deploy automatically
+5. Verify core apps deploy automatically via ApplicationSets
 6. Deploy testing applications manually
 
 ## Important Notes

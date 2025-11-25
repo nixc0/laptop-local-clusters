@@ -7,7 +7,8 @@ This directory contains ArgoCD application manifests for both standalone and mul
 ```
 argocd-apps/
 ├── README.md                              # This file
-├── laptop-clusters-applicationset.yaml    # Multi-cluster deployment (for homelab ArgoCD)
+├── bootstrap-laptop-management.yaml       # Bootstrap app (apply once to homelab)
+├── laptop-clusters-applicationset.yaml    # ApplicationSets (managed by bootstrap app)
 ├── hello-world-app.yaml                   # Example standalone ArgoCD app
 └── core-apps/                             # Core applications for multi-cluster mode
     ├── cilium/                            # Cilium CNI
@@ -19,19 +20,35 @@ argocd-apps/
 
 ### Multi-Cluster Mode (Homelab ArgoCD)
 
-The `laptop-clusters-applicationset.yaml` uses an ApplicationSet to deploy core applications to all laptop clusters labeled with `environment=laptop`.
+**Step 1: Apply Bootstrap Application (ONE-TIME)**
 
-**Deploy to homelab ArgoCD:**
+The `bootstrap-laptop-management.yaml` is an Application that manages the ApplicationSets. This is the GitOps way!
+
 ```bash
 kubectl config use-context homelab
-kubectl apply -f laptop-clusters-applicationset.yaml
+kubectl apply -f bootstrap-laptop-management.yaml
 ```
 
-The ApplicationSet will automatically create Applications for:
+**Step 2: Bootstrap App Auto-Syncs ApplicationSets**
+
+The bootstrap Application will:
+1. Watch the Git repository for changes to `laptop-clusters-applicationset.yaml`
+2. Auto-sync any changes to the ApplicationSets
+3. The ApplicationSets will then create Applications for each registered laptop cluster
+
+**Step 3: Register Laptop Clusters**
+
+When you register a laptop cluster with label `environment=laptop`, the ApplicationSets automatically create Applications for:
 - Cilium (every cluster with `environment=laptop`)
 - Monitoring stack (every cluster with `environment=laptop`)
 - Ingress-nginx (every cluster with `environment=laptop`)
 - Cert-manager (every cluster with `environment=laptop`)
+
+**Why Use Bootstrap Application?**
+- Fully GitOps - changes to ApplicationSets are synced automatically
+- No manual `kubectl apply` needed after initial setup
+- Changes in Git propagate to all clusters automatically
+- Follows App-of-Apps pattern (best practice)
 
 ### Standalone Mode (Local ArgoCD)
 

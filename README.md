@@ -63,17 +63,20 @@ Ideal when you have multiple laptops and want consistent core applications manag
 ### Quick Multi-Cluster Start
 
 ```bash
-# On your laptop (after homelab ArgoCD is set up)
+# ONE-TIME: On homelab cluster, apply the bootstrap Application
+kubectl apply -f argocd-apps/bootstrap-laptop-management.yaml --context homelab
+# This creates the ApplicationSets that manage all laptop clusters
+
+# On your laptop (creates cluster and registers with homelab)
 ./create-cluster.sh --skip-cilium --register-with-homelab homelab my-laptop
 
-# ArgoCD will automatically deploy:
-# - Cilium CNI
-# - Prometheus/Grafana monitoring
-# - Ingress-nginx
-# - Cert-manager
-# - Any other core apps defined in the ApplicationSet
+# ArgoCD will automatically deploy core apps:
+# - Cilium CNI (sync-wave -1, deploys first)
+# - Ingress-nginx (sync-wave 0)
+# - Cert-manager (sync-wave 0)
+# - Prometheus/Grafana monitoring (sync-wave 1)
 
-# Deploy testing apps manually:
+# Deploy testing apps manually (not managed by ArgoCD):
 kubectl apply -f test-apps/hello-world/deployment.yaml
 ```
 

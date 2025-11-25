@@ -1,0 +1,48 @@
+# Bootstrap Application for Homelab ArgoCD
+# This Application manages the ApplicationSets that deploy core apps to laptop clusters
+#
+# How to use:
+# 1. Push this repo to GitHub
+# 2. Update the repoURL below with your GitHub username
+# 3. Apply this ONCE to your homelab ArgoCD:
+#    kubectl apply -f argocd-apps/bootstrap-laptop-management.yaml --context homelab
+# 4. ArgoCD will then manage the ApplicationSets and auto-sync changes from Git
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: laptop-management-bootstrap
+  namespace: argocd
+  # This annotation ensures the bootstrap app itself stays in homelab
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  # Source: This repo contains the ApplicationSets
+  source:
+    repoURL: https://github.com/YOUR-USERNAME/local-cluster-standard.git
+    targetRevision: HEAD
+    path: argocd-apps
+    # Only sync the laptop-clusters-applicationset.yaml, not other apps
+    directory:
+      include: 'laptop-clusters-applicationset.yaml'
+
+  # Destination: Deploy to homelab ArgoCD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  # Sync policy
+  syncPolicy:
+    automated:
+      prune: true      # Remove ApplicationSets if deleted from Git
+      selfHeal: true   # Auto-sync changes from Git
+    syncOptions:
+      - CreateNamespace=false  # argocd namespace already exists
+      - ServerSideApply=true
+
+  # Sync wave (optional - if you have other bootstrap apps)
+  # metadata:
+  #   annotations:
+  #     argocd.argoproj.io/sync-wave: "0"
