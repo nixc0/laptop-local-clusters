@@ -16,7 +16,6 @@ This guide explains how to use your homelab ArgoCD to manage core applications a
 │  │  2. ApplicationSets (auto-synced from Git)        │  │
 │  │     - laptop-clusters-cilium                      │  │
 │  │     - laptop-clusters-monitoring                  │  │
-│  │     - laptop-clusters-ingress-nginx               │  │
 │  │     - laptop-clusters-cert-manager                │  │
 │  │     ↓                                              │  │
 │  │  3. Applications (auto-created per cluster)       │  │
@@ -30,9 +29,8 @@ This guide explains how to use your homelab ArgoCD to manage core applications a
     │  MacBook Cluster  │    │  Linux Laptop Cluster │
     │                   │    │                       │
     │  Core Apps:       │    │  Core Apps:           │
-    │  ✓ Cilium         │    │  ✓ Cilium             │
+    │  ✓ Cilium + IC    │    │  ✓ Cilium + IC        │
     │  ✓ Monitoring     │    │  ✓ Monitoring         │
-    │  ✓ Ingress        │    │  ✓ Ingress            │
     │  ✓ Cert-Manager   │    │  ✓ Cert-Manager       │
     │                   │    │                       │
     │  Testing Apps:    │    │  Testing Apps:        │
@@ -132,7 +130,6 @@ kubectl get applicationset -n argocd
 # You should see:
 # - laptop-clusters-cilium
 # - laptop-clusters-monitoring
-# - laptop-clusters-ingress-nginx
 # - laptop-clusters-cert-manager
 ```
 
@@ -189,11 +186,11 @@ kubectl wait --for=condition=ready pod -l k8s-app=cilium -n kube-system --timeou
 # Check monitoring stack
 kubectl get pods -n monitoring
 
-# Check ingress
-kubectl get pods -n ingress-nginx
-
 # Check cert-manager
 kubectl get pods -n cert-manager
+
+# Check Cilium Ingress Controller status
+kubectl get ingressclass
 ```
 
 ## Core Applications Managed by ArgoCD
@@ -202,8 +199,12 @@ The following applications are automatically deployed to all laptop clusters wit
 
 ### 1. **Cilium** (Sync Wave: -1)
 - **Namespace**: kube-system
-- **Purpose**: CNI and network policies
-- **Features**: Hubble for observability, kube-proxy replacement
+- **Purpose**: CNI, network policies, and ingress controller
+- **Features**:
+  - eBPF-based networking and kube-proxy replacement
+  - Built-in Ingress Controller (replaces ingress-nginx)
+  - Hubble for observability
+- **IngressClass**: `cilium` (set as default)
 
 ### 2. **Kube-Prometheus-Stack** (Sync Wave: 1)
 - **Namespace**: monitoring
@@ -211,12 +212,7 @@ The following applications are automatically deployed to all laptop clusters wit
 - **Components**: Prometheus, Grafana, Alertmanager
 - **Access**: Port-forward Grafana on port 3000
 
-### 3. **Ingress-Nginx** (Sync Wave: 0)
-- **Namespace**: ingress-nginx
-- **Purpose**: HTTP/HTTPS ingress controller
-- **Type**: NodePort (for local Docker clusters)
-
-### 4. **Cert-Manager** (Sync Wave: 0)
+### 3. **Cert-Manager** (Sync Wave: 0)
 - **Namespace**: cert-manager
 - **Purpose**: Certificate management
 - **Features**: Self-signed and Let's Encrypt certs

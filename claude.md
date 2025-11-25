@@ -25,7 +25,7 @@ This document provides context about the local-cluster-standard project for AI a
 
 **2. Multi-Cluster GitOps Mode**
 - Multiple laptop clusters managed by centralized homelab ArgoCD
-- Core applications (Cilium, monitoring, ingress, cert-manager) synced from Git
+- Core applications (Cilium with ingress, monitoring, cert-manager) synced from Git
 - Testing applications deployed manually per laptop
 - Consistent infrastructure across all laptops
 
@@ -61,9 +61,9 @@ Laptop Clusters (labeled: environment=laptop)
 │   ├── hello-world-app.yaml          # Example ArgoCD app
 │   └── core-apps/                    # Core infrastructure apps
 │       ├── README.md                 # Core apps documentation
-│       ├── cilium/                   # Cilium CNI
+│       ├── cilium/                   # Cilium CNI + Ingress Controller
 │       ├── monitoring/               # Prometheus/Grafana
-│       └── dev-tools/                # Ingress, cert-manager
+│       └── dev-tools/                # cert-manager
 └── test-apps/
     └── hello-world/                  # Sample testing application
 ```
@@ -84,8 +84,8 @@ Laptop Clusters (labeled: environment=laptop)
 
 ### Sync Waves
 - Control deployment order via annotations
-- Wave -1: Cilium (must deploy first for networking)
-- Wave 0: Infrastructure (ingress, cert-manager)
+- Wave -1: Cilium (must deploy first for networking and ingress)
+- Wave 0: Infrastructure (cert-manager)
 - Wave 1: Monitoring
 - Wave 2+: Applications
 
@@ -140,7 +140,7 @@ Bootstrap Application deployed to homelab ArgoCD (App-of-Apps pattern):
 ### laptop-clusters-applicationset.yaml
 Defines ALL core applications deployed to laptop clusters:
 - Managed by the bootstrap Application
-- Contains ApplicationSets for Cilium, monitoring, ingress, cert-manager
+- Contains ApplicationSets for Cilium (with ingress), monitoring, cert-manager
 - Uses cluster selector `environment=laptop` for targeting
 - Single source of truth for multi-cluster infrastructure
 

@@ -69,6 +69,11 @@ spec:
               mode: kubernetes
             kubeProxyReplacement: true
             forwardKubeDNSToHost: false
+            # Enable Cilium Ingress Controller (replaces ingress-nginx)
+            ingressController:
+              enabled: true
+              default: true
+              loadbalancerMode: shared
             hubble:
               enabled: true
               relay:
@@ -168,57 +173,6 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
----
-# ApplicationSet for ingress-nginx
-apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
-metadata:
-  name: laptop-clusters-ingress-nginx
-  namespace: argocd
-spec:
-  generators:
-    - clusters:
-        selector:
-          matchLabels:
-            environment: laptop
-  template:
-    metadata:
-      name: '{{name}}-ingress-nginx'
-      labels:
-        cluster: '{{name}}'
-        environment: laptop
-      annotations:
-        argocd.argoproj.io/sync-wave: "0"
-    spec:
-      project: default
-      source:
-        repoURL: https://kubernetes.github.io/ingress-nginx
-        chart: ingress-nginx
-        targetRevision: 4.11.0
-        helm:
-          releaseName: ingress-nginx
-          values: |
-            controller:
-              service:
-                type: NodePort
-              resources:
-                requests:
-                  cpu: 100m
-                  memory: 90Mi
-                limits:
-                  cpu: 200m
-                  memory: 180Mi
-              admissionWebhooks:
-                enabled: false
-      destination:
-        server: '{{server}}'
-        namespace: ingress-nginx
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
-        syncOptions:
-          - CreateNamespace=true
 ---
 # ApplicationSet for cert-manager
 apiVersion: argoproj.io/v1alpha1

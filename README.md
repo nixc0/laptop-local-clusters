@@ -71,8 +71,7 @@ kubectl apply -f argocd-apps/bootstrap-laptop-management.yaml --context homelab
 ./create-cluster.sh --skip-cilium --register-with-homelab homelab my-laptop
 
 # ArgoCD will automatically deploy core apps:
-# - Cilium CNI (sync-wave -1, deploys first)
-# - Ingress-nginx (sync-wave 0)
+# - Cilium CNI with Ingress Controller (sync-wave -1, deploys first)
 # - Cert-manager (sync-wave 0)
 # - Prometheus/Grafana monitoring (sync-wave 1)
 

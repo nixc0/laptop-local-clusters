@@ -11,9 +11,9 @@ argocd-apps/
 ├── laptop-clusters-applicationset.yaml    # ApplicationSets (managed by bootstrap app)
 ├── hello-world-app.yaml                   # Example standalone ArgoCD app
 └── core-apps/                             # Core applications for multi-cluster mode
-    ├── cilium/                            # Cilium CNI
+    ├── cilium/                            # Cilium CNI + Ingress Controller
     ├── monitoring/                        # Prometheus/Grafana stack
-    └── dev-tools/                         # Ingress, cert-manager, etc.
+    └── dev-tools/                         # cert-manager, etc.
 ```
 
 ## Usage
@@ -39,9 +39,8 @@ The bootstrap Application will:
 **Step 3: Register Laptop Clusters**
 
 When you register a laptop cluster with label `environment=laptop`, the ApplicationSets automatically create Applications for:
-- Cilium (every cluster with `environment=laptop`)
+- Cilium with Ingress Controller (every cluster with `environment=laptop`)
 - Monitoring stack (every cluster with `environment=laptop`)
-- Ingress-nginx (every cluster with `environment=laptop`)
 - Cert-manager (every cluster with `environment=laptop`)
 
 **Why Use Bootstrap Application?**
@@ -64,20 +63,19 @@ kubectl apply -f hello-world-app.yaml
 ### Cilium
 - **Namespace**: kube-system
 - **Chart**: https://helm.cilium.io/
-- **Purpose**: CNI with eBPF networking
+- **Purpose**: CNI with eBPF networking and built-in ingress controller
 - **Sync Wave**: -1 (deploys first)
+- **Features**:
+  - eBPF-based networking
+  - Cilium Ingress Controller (replaces ingress-nginx)
+  - Hubble for observability
+  - kube-proxy replacement
 
 ### Monitoring
 - **Namespace**: monitoring
 - **Chart**: kube-prometheus-stack
 - **Components**: Prometheus, Grafana, Alertmanager
 - **Sync Wave**: 1
-
-### Ingress-Nginx
-- **Namespace**: ingress-nginx
-- **Chart**: ingress-nginx
-- **Purpose**: HTTP/HTTPS ingress controller
-- **Sync Wave**: 0
 
 ### Cert-Manager
 - **Namespace**: cert-manager
@@ -131,8 +129,8 @@ argocd cluster add my-cluster \
 ## Sync Waves
 
 Applications use sync waves to control deployment order:
-- **-1**: Cilium (must deploy first for networking)
-- **0**: Infrastructure (ingress, cert-manager)
+- **-1**: Cilium (must deploy first for networking and ingress)
+- **0**: Infrastructure (cert-manager)
 - **1**: Monitoring and observability
 - **2+**: Application layer
 
