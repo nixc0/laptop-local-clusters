@@ -32,9 +32,7 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
-      # Sync waves to ensure proper ordering
-      syncOptions:
-        - RespectIgnoreDifferences=true
+          - RespectIgnoreDifferences=true
 ---
 # ApplicationSet specifically for Cilium (needs kube-system namespace)
 apiVersion: argoproj.io/v1alpha1
