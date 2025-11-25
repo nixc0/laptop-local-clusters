@@ -19,7 +19,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: https://github.com/YOUR-USERNAME/local-cluster-standard.git
+        repoURL: https://github.com/nixc0/laptop-local-clusters.git
         targetRevision: HEAD
         path: 'argocd-apps/core-apps/{{path.basename}}'
       destination:
