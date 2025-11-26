@@ -1,39 +1,3 @@
-apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
-metadata:
-  name: laptop-clusters-core-apps
-  namespace: argocd
-spec:
-  # Generate applications for all clusters with the 'laptop' label
-  generators:
-    - clusters:
-        selector:
-          matchLabels:
-            environment: laptop
-  template:
-    metadata:
-      name: '{{name}}-{{path.basename}}'
-      labels:
-        cluster: '{{name}}'
-        environment: laptop
-    spec:
-      project: default
-      source:
-        repoURL: https://github.com/nixc0/laptop-local-clusters.git
-        targetRevision: HEAD
-        path: 'argocd-apps/core-apps/{{path.basename}}'
-      destination:
-        server: '{{server}}'
-        namespace: '{{path.basename}}'
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
-        syncOptions:
-          - CreateNamespace=true
-          - ServerSideApply=true
-          - RespectIgnoreDifferences=true
----
 # ApplicationSet specifically for Cilium (needs kube-system namespace)
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
