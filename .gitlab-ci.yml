@@ -1,0 +1,5 @@
+include:
+  - remote: 'https://gitlab.com/lacework-security/code-security/code-security-gitlab/-/raw/main/lacework-code-security.yaml'
+
+stages:
+  - security-scan
