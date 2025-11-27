@@ -31,15 +31,25 @@ if ! kubectl config get-contexts "${HOMELAB_CONTEXT}" &> /dev/null; then
 fi
 
 # Verify laptop cluster context exists
-LAPTOP_CONTEXT="admin@${CLUSTER_NAME}"
+# k3d creates contexts with name "k3d-NAME" while Talos uses "admin@NAME"
+LAPTOP_CONTEXT="${CLUSTER_NAME}"
 if ! kubectl config get-contexts "${LAPTOP_CONTEXT}" &> /dev/null; then
-    echo "Error: Laptop cluster context '${LAPTOP_CONTEXT}' not found"
-    echo "Make sure the cluster is created first with: ./create-cluster.sh ${CLUSTER_NAME}"
-    exit 1
+    # Try Talos naming convention
+    LAPTOP_CONTEXT="admin@${CLUSTER_NAME}"
+    if ! kubectl config get-contexts "${LAPTOP_CONTEXT}" &> /dev/null; then
+        echo "Error: Laptop cluster context not found"
+        echo "Tried: ${CLUSTER_NAME} and admin@${CLUSTER_NAME}"
+        echo "Available contexts:"
+        kubectl config get-contexts -o name | grep -v "homelab"
+        exit 1
+    fi
 fi
+echo "Using context: ${LAPTOP_CONTEXT}"
+echo ""
 
 # Get laptop cluster server URL
 echo "Getting laptop cluster API server URL..."
+# k3d names clusters as "k3d-NAME" while Talos uses "NAME"
 LAPTOP_SERVER=$(kubectl config view -o jsonpath="{.clusters[?(@.name==\"${CLUSTER_NAME}\")].cluster.server}")
 if [ -z "$LAPTOP_SERVER" ]; then
     echo "Error: Could not find server URL for cluster '${CLUSTER_NAME}'"

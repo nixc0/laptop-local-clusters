@@ -1,19 +1,29 @@
 # Local Kubernetes Cluster Standard
 
-Standardized setup for local Kubernetes testing clusters using Talos Linux, Cilium CNI, and ArgoCD.
+Standardized setup for local Kubernetes testing clusters using k3d, optional Cilium CNI, and ArgoCD.
 
-Works on both macOS and Linux laptops with consistent configuration.
+Works on both macOS and Linux laptops with consistent configuration, using either Docker Desktop or Podman Desktop.
 
 ## Quick Start
 
 ### Prerequisites
 
 Make sure you have these installed:
-- Docker (18.03+)
-- talosctl
-- kubectl
-- cilium CLI (optional but recommended)
-- argocd CLI (optional)
+- **Docker Desktop** or **Podman Desktop** (with Docker socket compatibility)
+- **k3d** - Lightweight Kubernetes in Docker
+- **kubectl** - Kubernetes CLI
+- **cilium CLI** (optional, only if using Cilium via ArgoCD)
+- **argocd CLI** (optional, for multi-cluster setup)
+
+#### Install k3d
+
+```bash
+# macOS
+brew install k3d
+
+# Linux
+curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+```
 
 See [CLUSTER_PLAN.md](CLUSTER_PLAN.md) for detailed installation instructions for your platform.
 
@@ -22,19 +32,19 @@ See [CLUSTER_PLAN.md](CLUSTER_PLAN.md) for detailed installation instructions fo
 ```bash
 # Clone this repo on your laptop
 git clone <your-repo-url>
-cd local-cluster-standard
+cd laptop-local-clusters
 
 # Make scripts executable (first time only)
-chmod +x *.sh
+chmod +x *.sh scripts/*.sh
 
-# Create a cluster (default: 1 control plane, 2 workers)
-./create-cluster.sh
+# Create a cluster (default: 1 control plane, 2 workers, Flannel CNI)
+./create-cluster-k3d.sh
 
-# Install ArgoCD
+# Optional: Install ArgoCD for standalone use
 ./install-argocd.sh
 ```
 
-That's it! You now have a fully functional Kubernetes cluster with Cilium and ArgoCD.
+That's it! You now have a fully functional Kubernetes cluster ready in **15-30 seconds**.
 
 ## Two Modes of Operation
 
@@ -42,15 +52,21 @@ This repository supports two deployment models:
 
 ### 1. Standalone Mode (Default)
 Perfect for individual testing and development on a single laptop.
-- Cilium and ArgoCD installed locally on the cluster
+- Uses k3s default Flannel CNI (fast, simple)
+- Optional ArgoCD installed locally on the cluster
 - Full autonomy per cluster
-- Quick setup with `./create-cluster.sh`
+- Ultra-fast setup: **~15 seconds**
+
+```bash
+./create-cluster-k3d.sh my-cluster
+```
 
 ### 2. Multi-Cluster GitOps Mode
 Ideal when you have multiple laptops and want consistent core applications managed centrally.
-- **Homelab ArgoCD** manages core apps (Cilium, monitoring, ingress, cert-manager) on ALL laptop clusters
+- **Homelab ArgoCD** manages core apps (Cilium CNI, monitoring, ingress, cert-manager) on ALL laptop clusters
 - **Laptop clusters** can still deploy testing apps manually (kubectl/helm)
 - Core apps always in sync, testing apps are independent
+- Uses Cilium CNI (managed by ArgoCD) instead of Flannel
 
 **Use Multi-Cluster GitOps when:**
 - You work across multiple laptops (MacBook + Linux)
@@ -68,7 +84,7 @@ kubectl apply -f argocd-apps/bootstrap-laptop-management.yaml --context homelab
 # This creates the ApplicationSets that manage all laptop clusters
 
 # On your laptop (creates cluster and registers with homelab)
-./create-cluster.sh --skip-cilium --register-with-homelab homelab my-laptop
+./create-cluster-k3d.sh --skip-cilium --register-with-homelab homelab my-laptop
 
 # ArgoCD will automatically deploy core apps:
 # - Cilium CNI with Ingress Controller (sync-wave -1, deploys first)
@@ -84,43 +100,50 @@ kubectl apply -f test-apps/hello-world/deployment.yaml
 ### Create Cluster Variants
 
 ```bash
-# Default cluster
-./create-cluster.sh
+# Default cluster (1 control plane, 2 workers)
+./create-cluster-k3d.sh
 
 # Custom name and size
-./create-cluster.sh my-test 3 1  # name, workers, control-planes
+./create-cluster-k3d.sh my-test 3 1  # name, workers, control-planes
 
 # Minimal single-node cluster
-./create-cluster.sh mini 0 1
+./create-cluster-k3d.sh mini 0 1
+
+# ArgoCD-managed cluster (with Cilium)
+./create-cluster-k3d.sh --skip-cilium --register-with-homelab homelab laptop-name
 ```
 
 ### Manage Clusters
 
 ```bash
 # List running clusters
-talosctl cluster show
+k3d cluster list
 
 # Get cluster info
-kubectl cluster-info
-kubectl get nodes
+kubectl cluster-info --context k3d-my-cluster
+kubectl get nodes --context k3d-my-cluster
 
 # Destroy cluster
-talosctl cluster destroy --name talos-local
+k3d cluster delete my-cluster
 
-# Destroy specific cluster
-talosctl cluster destroy --name my-test
+# Stop/start cluster (preserves state)
+k3d cluster stop my-cluster
+k3d cluster start my-cluster
 ```
 
 ### Verify Installation
 
 ```bash
-# Check Cilium status
+# Check nodes
+kubectl get nodes
+
+# Check all pods
+kubectl get pods -A
+
+# Check Cilium status (if using ArgoCD-managed cluster)
 cilium status
 
-# Run Cilium connectivity test
-cilium connectivity test
-
-# Check ArgoCD
+# Check ArgoCD (if installed)
 kubectl get pods -n argocd
 ```
 
@@ -139,18 +162,21 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.pas
 ## Repository Structure
 
 ```
-local-cluster-standard/
+laptop-local-clusters/
 ├── README.md                         # This file
 ├── CLUSTER_PLAN.md                   # Detailed plan and rationale
 ├── MULTI_CLUSTER_SETUP.md            # Multi-cluster GitOps guide
-├── create-cluster.sh                 # Cluster creation script
+├── CLAUDE.md                         # Project context for AI assistants
+├── create-cluster-k3d.sh             # k3d cluster creation script (PRIMARY)
+├── create-cluster.sh                 # Legacy Talos script (deprecated)
 ├── install-argocd.sh                 # ArgoCD installation script (standalone)
-├── cilium-patch.yaml                 # Talos config for Cilium CNI
+├── cilium-patch.yaml                 # Legacy Talos config (not used with k3d)
 ├── scripts/
 │   └── register-cluster.sh           # Register laptop with homelab ArgoCD
 ├── test-apps/                        # Sample testing applications
 │   └── hello-world/
 └── argocd-apps/                      # ArgoCD application manifests
+    ├── bootstrap-laptop-management.yaml     # Bootstrap app (App-of-Apps)
     ├── laptop-clusters-applicationset.yaml  # Multi-cluster deployment
     └── core-apps/                    # Core apps (Cilium, monitoring, etc.)
         ├── cilium/
@@ -164,50 +190,76 @@ You can run multiple clusters simultaneously:
 
 ```bash
 # Create first cluster
-./create-cluster.sh cluster1
+./create-cluster-k3d.sh cluster1
 
-# Create second cluster (requires different CIDR)
-talosctl cluster create --name cluster2 --cidr 10.6.0.0/24 --config-patch @cilium-patch.yaml
+# Create second cluster
+./create-cluster-k3d.sh cluster2
+
+# k3d automatically manages networking, no CIDR conflicts!
 
 # Switch between clusters
-kubectl config use-context admin@cluster1
-kubectl config use-context admin@cluster2
+kubectl config use-context k3d-cluster1
+kubectl config use-context k3d-cluster2
+
+# List all contexts
+kubectl config get-contexts
 ```
 
 ## Troubleshooting
 
-### Cluster creation hangs
-This is normal! Nodes won't show as "Ready" until Cilium is installed. Wait for the script to complete.
+### Container runtime not found
+If you see "Docker daemon not running":
+- **Docker Desktop**: Make sure it's started
+- **Podman Desktop**: Make sure it's started and Docker socket compatibility is enabled
+- The script automatically detects and uses either runtime
 
-### Can't connect to Docker on macOS
+### Cluster creation fails
 ```bash
-sudo ln -s ~/Library/Containers/com.docker.docker/Data/docker.sock /var/run/docker.sock
+# Clean up any partial state
+k3d cluster delete <cluster-name>
+docker network prune -f
+docker volume prune -f
+
+# Try again
+./create-cluster-k3d.sh <cluster-name>
 ```
 
-### DNS not working in pods
-The scripts already handle this, but if you're installing Cilium manually:
-```bash
-cilium install --set forwardKubeDNSToHost=false
-```
+### Nodes NotReady (ArgoCD-managed clusters only)
+This is expected! With `--skip-cilium`, nodes stay NotReady until ArgoCD installs Cilium CNI. Wait for ArgoCD sync to complete.
+
+### Can't reach homelab from laptop
+Multi-cluster mode requires VPN/Tailscale for homelab → laptop communication. See [MULTI_CLUSTER_SETUP.md](MULTI_CLUSTER_SETUP.md).
 
 ### More help
 See [CLUSTER_PLAN.md](CLUSTER_PLAN.md) for comprehensive documentation, known issues, and solutions.
 
 ## What Makes This Special?
 
+- **Blazing Fast**: Clusters ready in 15-30 seconds (vs hours with other tools)
 - **Cross-platform**: Same setup on macOS and Linux
-- **Production-like**: Talos is an immutable, secure, minimal Kubernetes OS
-- **Modern CNI**: Cilium with eBPF for high-performance networking
+- **Flexible Runtime**: Works with Docker Desktop or Podman Desktop
+- **Modern CNI**: Optional Cilium with eBPF for high-performance networking
 - **GitOps ready**: ArgoCD for declarative deployments
-- **Fast iteration**: Create/destroy clusters in minutes
+- **Instant iteration**: Create/destroy clusters in seconds
 - **Multi-cluster**: Test complex scenarios with multiple clusters
+- **Resource efficient**: k3s is lightweight and runs great on laptops
+
+## Migration from Talos
+
+This repository previously used Talos Linux. We migrated to k3d for:
+- **Speed**: 15 seconds vs hours of troubleshooting
+- **Reliability**: Better macOS/Podman compatibility
+- **Simplicity**: Fewer moving parts
+- **Flexibility**: Still supports same GitOps architecture
+
+The old `create-cluster.sh` (Talos) is kept for reference but **deprecated**. Use `create-cluster-k3d.sh` instead.
 
 ## Next Steps
 
 ### Standalone Mode
 1. Deploy a test application to verify everything works
 2. Set up an ArgoCD application to deploy from Git
-3. Experiment with Cilium features (network policies, hubble, etc.)
+3. Experiment with k3s features and lightweight Kubernetes
 
 ### Multi-Cluster GitOps Mode
 1. Read [MULTI_CLUSTER_SETUP.md](MULTI_CLUSTER_SETUP.md) for complete setup
@@ -220,9 +272,12 @@ See [CLUSTER_PLAN.md](CLUSTER_PLAN.md) for comprehensive documentation, known is
 - Read [CLUSTER_PLAN.md](CLUSTER_PLAN.md) for detailed architecture and rationale
 - Customize core app configurations in `argocd-apps/core-apps/`
 - Add your own core applications to the ApplicationSet
+- Explore Cilium features (network policies, Hubble observability, etc.)
 
 ## Resources
 
-- [Talos Documentation](https://www.talos.dev/)
+- [k3d Documentation](https://k3d.io/)
+- [k3s Documentation](https://docs.k3s.io/)
 - [Cilium Documentation](https://docs.cilium.io/)
 - [ArgoCD Documentation](https://argo-cd.readthedocs.io/)
+- [Podman Desktop](https://podman-desktop.io/)

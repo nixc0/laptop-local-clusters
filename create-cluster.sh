@@ -2,6 +2,33 @@
 
 set -e
 
+# Detect and configure container runtime (Docker or Podman)
+detect_container_runtime() {
+    # Check if Podman is running
+    if command -v podman &> /dev/null && podman machine list 2>/dev/null | grep -q "Currently running"; then
+        # Get Podman socket path dynamically
+        PODMAN_SOCK=$(find /var/folders -name "podman-machine-default-api.sock" 2>/dev/null | head -1)
+        if [ -n "$PODMAN_SOCK" ]; then
+            echo "Using Podman Desktop (socket: $PODMAN_SOCK)"
+            export DOCKER_HOST="unix://$PODMAN_SOCK"
+            return 0
+        fi
+    fi
+
+    # Check if Docker is running
+    if docker info &> /dev/null; then
+        echo "Using Docker Desktop"
+        return 0
+    fi
+
+    echo "Error: Neither Docker nor Podman is running"
+    echo "Please start Docker Desktop or Podman Desktop"
+    exit 1
+}
+
+# Configure container runtime
+detect_container_runtime
+
 # Parse arguments
 SKIP_CILIUM=false
 HOMELAB_CONTEXT=""
@@ -60,6 +87,7 @@ talosctl cluster create \
   --workers "${WORKERS}" \
   --controlplanes "${CONTROL_PLANES}" \
   --config-patch @cilium-patch.yaml \
+  --endpoint 127.0.0.1 \
   --wait
 
 echo ""
