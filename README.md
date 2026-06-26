@@ -1,8 +1,32 @@
 # Local Kubernetes Cluster Standard
 
-Standardized setup for local Kubernetes testing clusters using k3d, optional Cilium CNI, and ArgoCD.
+> Multi-node Kubernetes on your laptop in 15 seconds. Optional Cilium CNI, optional ArgoCD-managed core apps synced from a homelab cluster. Works on macOS or Linux, Docker Desktop or Podman Desktop.
 
-Works on both macOS and Linux laptops with consistent configuration, using either Docker Desktop or Podman Desktop.
+## Architecture at a glance
+
+Two modes, same scripts.
+
+**Standalone (default).** Single laptop, k3s default Flannel CNI, optional local ArgoCD. No external dependencies.
+
+```
+Your laptop
+└── k3d cluster (Flannel CNI)
+    ├── ArgoCD (optional, installed locally)
+    └── Test apps (kubectl/helm)
+```
+
+**Multi-cluster GitOps.** A central homelab ArgoCD pushes a consistent set of core apps (Cilium, monitoring, cert-manager) to one or more laptop clusters over Tailscale/VPN. Testing apps remain laptop-local and manual.
+
+```
+Homelab cluster (ArgoCD)
+  │
+  │ GitOps sync over Tailscale/VPN
+  ▼
+Laptop(s)
+└── k3d cluster (Cilium CNI, installed by ArgoCD)
+    ├── Core apps (Cilium, Grafana, cert-manager) ← ArgoCD-managed
+    └── Test apps                                  ← manual kubectl/helm
+```
 
 ## Quick Start
 
